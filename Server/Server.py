@@ -2,7 +2,7 @@ import socket
 import signal
 import sys
 import json
-import mysql.connector
+import sqlite3
 from datetime import datetime
 from _thread import *
 from random import randint
@@ -22,21 +22,18 @@ def establishConnections(port: int):
     except socket.error as e:
         print(str(e))
         exit()
-    db = mysql.connector.connect(
-        host="localhost", user="root", passwd="12345678", database="gtutag3d")
-    if (db.is_connected()):
-        print("Connected to database")
-    else:
-        print("Failed to connected to database")
-        exit()
+
     sock.listen()
     print("Server Started...")
-    return sock, db
+    return sock
 
 
-def worker(conn, addr, db):
+def worker(conn, addr):
     global players, isBegin, activeGame
+    db = sqlite3.connect("gtutag3d.db")
+    db.execute("PRAGMA foreign_keys = 1")  # Enable foreign keys
     sql = db.cursor()
+
     myid = -1
     myteam = -1
     readyCount = 0
@@ -48,30 +45,35 @@ def worker(conn, addr, db):
         else:
             request = json.loads(request)
 
-        if (request["type"] == "Hello"):
+        if request["type"] == "Hello":
             response = {
                 "type": "Hello",
                 "response": "Hello from server"
             }
             conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "Signup"):
+        elif request["type"] == "Signup":
             sql.execute(
-                "SELECT * FROM players WHERE username = %s", (request["username"],))
+                "SELECT * FROM players WHERE username = ?", (request["username"],)
+            )
             result = sql.fetchall()
-            if (len(result) > 0):
+            if len(result) > 0:
                 conn.sendall("Taken".encode())
             else:
                 sql.execute(
-                    "INSERT INTO players (username, password, wins, loses) VALUES (%s, %s, %s, %s)", (request["username"], request["password"], 0, 0))
+                    "INSERT INTO players (username, password, wins, loses) VALUES (?, ?, ?, ?)",
+                    (request["username"], request["password"], 0, 0),
+                )
                 db.commit()
                 conn.sendall("Done".encode())
 
-        elif (request["type"] == "Login"):
+        elif request["type"] == "Login":
             sql.execute(
-                "SELECT * FROM players WHERE username = %s AND password = %s", (request["username"], request["password"]))
+                "SELECT * FROM players WHERE username = ? AND password = ?",
+                (request["username"], request["password"]),
+            )
             result = sql.fetchall()
-            if (len(result) > 0):
+            if len(result) > 0:
                 myid = result[0][0]
                 players[myid] = {
                     "id": myid,
@@ -84,8 +86,8 @@ def worker(conn, addr, db):
             else:
                 conn.sendall("Failed".encode())
 
-        elif (request["type"] == "Create"):
-            if (activeGame != -1):
+        elif request["type"] == "Create":
+            if activeGame != -1:
                 response = {
                     "status": "Failed",
                     "activeGame": -1,
@@ -96,13 +98,15 @@ def worker(conn, addr, db):
             now = datetime.now()
             current_time = now.strftime("%Y-%m-%d %H:%M:%S")
             sql.execute(
-                "INSERT INTO games (date, players, winners) VALUES (%s, %s, %s)", (current_time, "N N N N N N N N N N N N", "N N N"))
+                "INSERT INTO games (date, players, winners) VALUES (?, ?, ?)",
+                (current_time, "N N N N N N N N N N N N", "N N N"),
+            )
             db.commit()
             sql.execute("SELECT id FROM games ORDER BY id DESC LIMIT 1")
             result = sql.fetchall()
             while True:
                 team = randint(1, 4)
-                if (len(teams[team]) < 3):
+                if len(teams[team]) < 3:
                     teams[team].append(myid)
                     myteam = team
                     break
@@ -115,11 +119,11 @@ def worker(conn, addr, db):
             }
             conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "isBegin"):
+        elif request["type"] == "isBegin":
             for player in players.values():
-                if (player["status"] == "ready"):
+                if player["status"] == "ready":
                     readyCount += 1
-            if (readyCount == 12):
+            if readyCount == 12:
                 counter = 0
                 for player in players.values():
                     player["pos"] = [player["pos"][0] +
@@ -130,8 +134,8 @@ def worker(conn, addr, db):
                 conn.sendall("No".encode())
                 readyCount = 0
 
-        elif (request["type"] == "Lobby"):
-            if (isBegin):
+        elif request["type"] == "Lobby":
+            if isBegin:
                 response = {
                     "type": "Begin",
                 }
@@ -142,7 +146,7 @@ def worker(conn, addr, db):
                 }
                 counter = 0
                 for team in teams:
-                    if (len(teams[team]) > 0):
+                    if len(teams[team]) > 0:
                         for player in teams[team]:
                             id = "player" + str(counter)
                             newPlayer = {
@@ -161,7 +165,7 @@ def worker(conn, addr, db):
                         }
                         response[id] = json.dumps(newPlayer)
                         counter += 1
-                while (counter < 12):
+                while counter < 12:
                     id = "player" + str(counter)
                     newPlayer = {
                         "team": -1,
@@ -172,17 +176,17 @@ def worker(conn, addr, db):
                     counter += 1
                 conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "Join"):
-            sql.execute("SELECT id FROM games WHERE id = %s", (request["id"],))
+        elif request["type"] == "Join":
+            sql.execute("SELECT id FROM games WHERE id = ?", (request["id"],))
             result = sql.fetchall()
-            if (len(result) == 0):
+            if len(result) == 0:
                 response = {
                     "status": "Failed",
                     "activeGame": -1,
                     "team": -1
                 }
                 conn.sendall(json.dumps(response).encode())
-            elif (activeGame != result[0][0]):
+            elif activeGame != result[0][0]:
                 response = {
                     "status": "Active",
                     "activeGame": -1,
@@ -193,7 +197,7 @@ def worker(conn, addr, db):
                 players[myid]["status"] = "ready"
                 while True:
                     team = randint(1, 4)
-                    if (len(teams[team]) < 3):
+                    if len(teams[team]) < 3:
                         teams[team].append(myid)
                         myteam = team
                         break
@@ -204,18 +208,18 @@ def worker(conn, addr, db):
                 }
                 conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "Status"):
-            if (players[myid]["status"] == "ready"):
+        elif request["type"] == "Status":
+            if players[myid]["status"] == "ready":
                 players[myid]["status"] = "notready"
             else:
                 players[myid]["status"] = "ready"
             conn.sendall("Done".encode())
 
-        elif (request["type"] == "Start"):
+        elif request["type"] == "Start":
             isBegin = True
             conn.sendall("Done".encode())
 
-        elif (request["type"] == "getPlayers"):
+        elif request["type"] == "getPlayers":
             response = {
                 "myid": myid,
             }
@@ -239,7 +243,7 @@ def worker(conn, addr, db):
                     }
                     response[id] = json.dumps(newPlayer)
                     counter += 1
-            while (counter < 12):
+            while counter < 12:
                 id = "player" + str(counter)
                 newPlayer = {
                     "id": -1,
@@ -256,7 +260,7 @@ def worker(conn, addr, db):
                 counter += 1
             conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "mypos"):
+        elif request["type"] == "mypos":
             players[myid]["pos"] = [
                 request["x"], request["y"], request["z"], request["rx"], request["ry"], request["rz"]]
             response = {
@@ -281,7 +285,7 @@ def worker(conn, addr, db):
                     }
                     response[id] = json.dumps(newPlayer)
                     counter += 1
-            while (counter < 12):
+            while counter < 12:
                 id = "player" + str(counter)
                 newPlayer = {
                     "id": -1,
@@ -291,21 +295,22 @@ def worker(conn, addr, db):
                     "rx": -1,
                     "ry": -1,
                     "rz": -1,
-                    "f": players[player]["f"]
+                    "f": False,
                 }
                 response[id] = json.dumps(newPlayer)
                 counter += 1
             conn.sendall(json.dumps(response).encode())
 
-        elif (request["type"] == "freeze"):
+        elif request["type"] == "freeze":
             players[request["id"]]["f"] = True
             scores[request["team"]-1] += 1
             conn.sendall("Done".encode())
 
     conn.close()
+    db.close()
 
 
-sock, db = establishConnections(3389)
+sock = establishConnections(3389)
 signal.signal(signal.SIGINT, signal_handler)
 isBegin = False
 activeGame = -1
@@ -323,7 +328,6 @@ positions = [
     [177, -23, -402],
     [154, -23, -78],
     [32, -23, -443],
-
 ]
 random.shuffle(positions)
 scores = [0, 0, 0, 0]
@@ -336,4 +340,4 @@ teams = {
 
 while True:
     conn, addr = sock.accept()
-    start_new_thread(worker, (conn, addr, db))
+    start_new_thread(worker, (conn, addr))
