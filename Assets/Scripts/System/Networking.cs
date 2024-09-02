@@ -4,7 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
-
+using System.IO;
 
 public class Networking : MonoBehaviour
 {
@@ -45,13 +45,25 @@ public class Networking : MonoBehaviour
             return;
         }
         GameObject.DontDestroyOnLoad(this.gameObject);
-        serverIP = "127.0.0.1";
+
+        // Read server IP from ipconfig.conf
+        try
+        {
+            string ipConfigPath = Path.Combine(Application.dataPath, "ipconfig.conf");
+            serverIP = File.ReadAllText(ipConfigPath).Trim();
+        }
+        catch (IOException e)
+        {
+            Debug.LogError("Could not read IP address from file: " + e);
+            return;
+        }
+
         serverPort = 3389;
 
-        //connect to server
+        // Connect to server
         ipAddress = IPAddress.Parse(serverIP);
         client = new TcpClient();
-        // connect to server on port 3389 in try catch block
+
         try
         {
             client.Connect(ipAddress, serverPort);
@@ -71,7 +83,6 @@ public class Networking : MonoBehaviour
         int bytes = stream.Read(data, 0, data.Length);
         helloRequest response = JsonUtility.FromJson<helloRequest>(Encoding.UTF8.GetString(data, 0, bytes));
         Debug.Log(response.response);
-
     }
 
     public bool signUp(string request)
