@@ -53,8 +53,8 @@ While GtuTag3D is designed for Windows, it should work on other operating system
 
 | Main Menu | Login Page |
 |-----------|------------|
-| ![Game Menu](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/tree/main/Assets/Images/ss1.png) | ![Login Page](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/tree/main/Assets/Images/ss2.png) |
+| ![Game Menu](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/main/Assets/Images/ss1.png) | ![Login Page](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/main/Assets/Images/ss2.png) |
 
 | Lobby | Gameplay |
 |-------|----------|
-| ![Lobby](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/tree/main/Assets/Images/ss3.png) | ![Gameplay](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/tree/main/Assets/Images/ss4.png) |
+| ![Lobby](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/main/Assets/Images/ss3.png) | ![Gameplay](https://raw.githubusercontent.com/hsynsarsilmaz/GtuTag3D/main/Assets/Images/ss4.png) |
